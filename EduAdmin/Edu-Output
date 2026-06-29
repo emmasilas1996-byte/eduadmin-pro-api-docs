@@ -1,0 +1,1186 @@
+{
+  "openapi" : "3.0.3",
+  "info" : {
+    "title" : "EduAdmin Pro API",
+    "description" : "The EduAdmin Pro REST API provides programmatic access to school management operations\nincluding student records, staff management, fees, grades, timetables, and administration.\n\n## Base URL\n```\nhttps://api.eduadminpro.com/v1\n```\n\n## Authentication\nAll endpoints (except `/auth/login` and `/auth/register`) require a valid JWT Bearer token\nin the `Authorization` header.\n\n```\nAuthorization: Bearer <your_token>\n```\n\nTokens expire after **24 hours**. Use `/auth/refresh` to obtain a new token without\nre-entering credentials.\n\n## Role-Based Access\nEduAdmin Pro uses five roles with different permission levels:\n| Role | Description |\n|------|-------------|\n| `super_admin` | Full system access |\n| `admin` | School-level administration |\n| `teacher` | Class and grade management |\n| `student` | Read-only access to own records |\n| `parent` | Read-only access to linked student records |\n\n## Response Format\nAll responses return JSON with the following envelope:\n```json\n{\n  \"success\": true,\n  \"data\": {},\n  \"message\": \"Operation successful\",\n  \"meta\": {\n    \"page\": 1,\n    \"per_page\": 20,\n    \"total\": 100\n  }\n}\n```\n\n## Rate Limiting\nRequests are limited to **300 per minute** per API token. Rate limit headers are included\nin every response:\n- `X-RateLimit-Limit`: Maximum requests per minute\n- `X-RateLimit-Remaining`: Requests remaining in current window\n- `X-RateLimit-Reset`: Unix timestamp when the window resets\n",
+    "contact" : {
+      "name" : "EduAdmin Pro Support",
+      "email" : "support@eduadminpro.com"
+    },
+    "license" : {
+      "name" : "MIT"
+    },
+    "version" : "2.1.0"
+  },
+  "servers" : [ {
+    "url" : "https://api.eduadminpro.com/v1",
+    "description" : "Production"
+  }, {
+    "url" : "https://staging-api.eduadminpro.com/v1",
+    "description" : "Staging"
+  } ],
+  "security" : [ {
+    "BearerAuth" : [ ]
+  } ],
+  "tags" : [ {
+    "name" : "Auth",
+    "description" : "Authentication and token management"
+  }, {
+    "name" : "Students",
+    "description" : "Student record management"
+  }, {
+    "name" : "Staff",
+    "description" : "Staff and teacher management"
+  }, {
+    "name" : "Fees",
+    "description" : "Fee collection and payment tracking"
+  }, {
+    "name" : "Grades",
+    "description" : "Academic results and grade management"
+  }, {
+    "name" : "Classes",
+    "description" : "Classes and subject management"
+  }, {
+    "name" : "Admin",
+    "description" : "System settings and administration"
+  } ],
+  "paths" : {
+    "/auth/register" : {
+      "post" : {
+        "tags" : [ "Auth" ],
+        "summary" : "Register a new user",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "required" : [ "email", "first_name", "last_name", "password", "role" ],
+                "type" : "object",
+                "properties" : {
+                  "first_name" : {
+                    "type" : "string"
+                  },
+                  "last_name" : {
+                    "type" : "string"
+                  },
+                  "email" : {
+                    "type" : "string",
+                    "format" : "email"
+                  },
+                  "password" : {
+                    "minLength" : 8,
+                    "type" : "string"
+                  },
+                  "role" : {
+                    "type" : "string",
+                    "enum" : [ "admin", "teacher", "student", "parent" ]
+                  }
+                }
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "User registered successfully",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "success" : {
+                      "type" : "boolean"
+                    },
+                    "data" : {
+                      "$ref" : "#/components/schemas/User"
+                    },
+                    "token" : {
+                      "type" : "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      }
+    },
+    "/auth/login" : {
+      "post" : {
+        "tags" : [ "Auth" ],
+        "summary" : "Log in and obtain a JWT token",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "required" : [ "email", "password" ],
+                "type" : "object",
+                "properties" : {
+                  "email" : {
+                    "type" : "string",
+                    "format" : "email",
+                    "example" : "admin@school.edu.ng"
+                  },
+                  "password" : {
+                    "type" : "string",
+                    "example" : "P@ssw0rd!"
+                  }
+                }
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Login successful",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "success" : true,
+                  "data" : {
+                    "user" : {
+                      "id" : "USR-2024-00001",
+                      "email" : "admin@school.edu.ng",
+                      "role" : "admin"
+                    },
+                    "token" : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                    "expires_in" : 86400
+                  }
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Invalid credentials",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ ]
+      }
+    },
+    "/auth/refresh" : {
+      "post" : {
+        "tags" : [ "Auth" ],
+        "summary" : "Refresh an expiring JWT token",
+        "responses" : {
+          "200" : {
+            "description" : "New token issued",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "success" : true,
+                  "data" : {
+                    "token" : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                    "expires_in" : 86400
+                  }
+                }
+              }
+            }
+          },
+          "401" : {
+            "description" : "Token invalid or already expired"
+          }
+        }
+      }
+    },
+    "/auth/logout" : {
+      "post" : {
+        "tags" : [ "Auth" ],
+        "summary" : "Invalidate the current token",
+        "responses" : {
+          "200" : {
+            "description" : "Logged out successfully"
+          }
+        }
+      }
+    },
+    "/students" : {
+      "get" : {
+        "tags" : [ "Students" ],
+        "summary" : "List all students",
+        "parameters" : [ {
+          "name" : "page",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "integer",
+            "default" : 1
+          }
+        }, {
+          "name" : "per_page",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "integer",
+            "default" : 20
+          }
+        }, {
+          "name" : "class_id",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "status",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "active", "inactive", "graduated", "withdrawn" ]
+          }
+        }, {
+          "name" : "search",
+          "in" : "query",
+          "description" : "Search by name or student ID",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "List of students",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "success" : {
+                      "type" : "boolean"
+                    },
+                    "data" : {
+                      "type" : "array",
+                      "items" : {
+                        "$ref" : "#/components/schemas/Student"
+                      }
+                    },
+                    "meta" : {
+                      "$ref" : "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "Students" ],
+        "summary" : "Enrol a new student",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Student"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Student created",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "success" : {
+                      "type" : "boolean"
+                    },
+                    "data" : {
+                      "$ref" : "#/components/schemas/Student"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/students/{id}" : {
+      "get" : {
+        "tags" : [ "Students" ],
+        "summary" : "Get a student by ID",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string"
+          },
+          "example" : "STU-2024-00042"
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Student record",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "success" : {
+                      "type" : "boolean"
+                    },
+                    "data" : {
+                      "$ref" : "#/components/schemas/Student"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404" : {
+            "description" : "Student not found"
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "Students" ],
+        "summary" : "Update a student record",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Student"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Student updated"
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "Students" ],
+        "summary" : "Withdraw a student",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Student withdrawn successfully"
+          }
+        }
+      }
+    },
+    "/staff" : {
+      "get" : {
+        "tags" : [ "Staff" ],
+        "summary" : "List all staff members",
+        "parameters" : [ {
+          "name" : "role",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "teacher", "admin", "support" ]
+          }
+        }, {
+          "name" : "department",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "List of staff",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "object",
+                  "properties" : {
+                    "success" : {
+                      "type" : "boolean"
+                    },
+                    "data" : {
+                      "type" : "array",
+                      "items" : {
+                        "$ref" : "#/components/schemas/Staff"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "Staff" ],
+        "summary" : "Add a new staff member",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Staff"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Staff member created"
+          }
+        }
+      }
+    },
+    "/staff/{id}" : {
+      "get" : {
+        "tags" : [ "Staff" ],
+        "summary" : "Get a staff member by ID",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Staff record"
+          }
+        }
+      },
+      "put" : {
+        "tags" : [ "Staff" ],
+        "summary" : "Update a staff record",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Staff"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Staff updated"
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "Staff" ],
+        "summary" : "Remove a staff member",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Staff member removed"
+          }
+        }
+      }
+    },
+    "/fees" : {
+      "get" : {
+        "tags" : [ "Fees" ],
+        "summary" : "List fee records",
+        "parameters" : [ {
+          "name" : "student_id",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "status",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "pending", "paid", "overdue", "waived" ]
+          }
+        }, {
+          "name" : "fee_type",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Fee records"
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "Fees" ],
+        "summary" : "Create a fee record",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Fee"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Fee record created"
+          }
+        }
+      }
+    },
+    "/fees/{id}/pay" : {
+      "post" : {
+        "tags" : [ "Fees" ],
+        "summary" : "Mark a fee as paid",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "required" : [ "amount_paid", "payment_method" ],
+                "type" : "object",
+                "properties" : {
+                  "payment_method" : {
+                    "type" : "string",
+                    "enum" : [ "cash", "bank_transfer", "card", "mobile_money" ]
+                  },
+                  "amount_paid" : {
+                    "type" : "number"
+                  },
+                  "reference" : {
+                    "type" : "string",
+                    "description" : "Payment reference or receipt number"
+                  }
+                }
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Payment recorded"
+          }
+        }
+      }
+    },
+    "/grades" : {
+      "get" : {
+        "tags" : [ "Grades" ],
+        "summary" : "List grade records",
+        "parameters" : [ {
+          "name" : "student_id",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "subject_id",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "term",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "first", "second", "third" ]
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Grade records"
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "Grades" ],
+        "summary" : "Submit a grade",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Grade"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Grade submitted"
+          }
+        }
+      }
+    },
+    "/grades/report/{student_id}" : {
+      "get" : {
+        "tags" : [ "Grades" ],
+        "summary" : "Get full academic report for a student",
+        "parameters" : [ {
+          "name" : "student_id",
+          "in" : "path",
+          "required" : true,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "term",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "session",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string",
+            "example" : "2023/2024"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Full student report card",
+            "content" : {
+              "application/json" : {
+                "example" : {
+                  "success" : true,
+                  "data" : {
+                    "student" : {
+                      "id" : "STU-2024-00042",
+                      "name" : "Chukwuemeka Obi"
+                    },
+                    "session" : "2023/2024",
+                    "term" : "second",
+                    "subjects" : [ {
+                      "subject" : "Mathematics",
+                      "score" : 87,
+                      "grade" : "A"
+                    }, {
+                      "subject" : "English Language",
+                      "score" : 74,
+                      "grade" : "B"
+                    } ],
+                    "average" : 80.5,
+                    "position" : 3,
+                    "total_students" : 35
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/classes" : {
+      "get" : {
+        "tags" : [ "Classes" ],
+        "summary" : "List all classes",
+        "responses" : {
+          "200" : {
+            "description" : "All classes"
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "Classes" ],
+        "summary" : "Create a class",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Class"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Class created"
+          }
+        }
+      }
+    },
+    "/classes/{id}/students" : {
+      "get" : {
+        "tags" : [ "Classes" ],
+        "summary" : "Get all students in a class",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Students in the class"
+          }
+        }
+      }
+    },
+    "/classes/{id}/subjects" : {
+      "get" : {
+        "tags" : [ "Classes" ],
+        "summary" : "Get subjects assigned to a class",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "style" : "simple",
+          "explode" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Subjects for the class"
+          }
+        }
+      }
+    },
+    "/admin/settings" : {
+      "get" : {
+        "tags" : [ "Admin" ],
+        "summary" : "Get system settings",
+        "responses" : {
+          "200" : {
+            "description" : "Current settings"
+          }
+        }
+      },
+      "patch" : {
+        "tags" : [ "Admin" ],
+        "summary" : "Update system settings",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "object",
+                "properties" : {
+                  "school_name" : {
+                    "type" : "string"
+                  },
+                  "academic_session" : {
+                    "type" : "string"
+                  },
+                  "current_term" : {
+                    "type" : "string",
+                    "enum" : [ "first", "second", "third" ]
+                  },
+                  "grading_scale" : {
+                    "type" : "object"
+                  }
+                }
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Settings updated"
+          }
+        }
+      }
+    },
+    "/admin/audit-logs" : {
+      "get" : {
+        "tags" : [ "Admin" ],
+        "summary" : "Retrieve audit logs",
+        "parameters" : [ {
+          "name" : "user_id",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "action",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "from",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        }, {
+          "name" : "to",
+          "in" : "query",
+          "required" : false,
+          "style" : "form",
+          "explode" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Audit log entries"
+          }
+        }
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "Error" : {
+        "type" : "object",
+        "properties" : {
+          "success" : {
+            "type" : "boolean",
+            "example" : false
+          },
+          "message" : {
+            "type" : "string",
+            "example" : "Unauthorized"
+          },
+          "errors" : {
+            "type" : "array",
+            "items" : {
+              "type" : "object",
+              "properties" : {
+                "field" : {
+                  "type" : "string"
+                },
+                "message" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Pagination" : {
+        "type" : "object",
+        "properties" : {
+          "page" : {
+            "type" : "integer"
+          },
+          "per_page" : {
+            "type" : "integer"
+          },
+          "total" : {
+            "type" : "integer"
+          },
+          "total_pages" : {
+            "type" : "integer"
+          }
+        }
+      },
+      "User" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "USR-2024-00001"
+          },
+          "email" : {
+            "type" : "string",
+            "format" : "email"
+          },
+          "role" : {
+            "type" : "string",
+            "enum" : [ "super_admin", "admin", "teacher", "student", "parent" ]
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
+      "Student" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "STU-2024-00042"
+          },
+          "first_name" : {
+            "type" : "string"
+          },
+          "last_name" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string",
+            "format" : "email"
+          },
+          "phone" : {
+            "type" : "string"
+          },
+          "class_id" : {
+            "type" : "string",
+            "example" : "CLS-2024-00003"
+          },
+          "enrollment_date" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "active", "inactive", "graduated", "withdrawn" ]
+          }
+        }
+      },
+      "Staff" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "STF-2024-00010"
+          },
+          "first_name" : {
+            "type" : "string"
+          },
+          "last_name" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string",
+            "format" : "email"
+          },
+          "role" : {
+            "type" : "string",
+            "enum" : [ "teacher", "admin", "support" ]
+          },
+          "department" : {
+            "type" : "string"
+          },
+          "subjects" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        }
+      },
+      "Fee" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "FEE-2024-00088"
+          },
+          "student_id" : {
+            "type" : "string"
+          },
+          "fee_type" : {
+            "type" : "string",
+            "enum" : [ "tuition", "exam", "uniform", "library", "other" ]
+          },
+          "amount" : {
+            "type" : "number",
+            "format" : "float"
+          },
+          "due_date" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "pending", "paid", "overdue", "waived" ]
+          },
+          "paid_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          }
+        }
+      },
+      "Grade" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "GRD-2024-00200"
+          },
+          "student_id" : {
+            "type" : "string"
+          },
+          "subject_id" : {
+            "type" : "string"
+          },
+          "term" : {
+            "type" : "string",
+            "enum" : [ "first", "second", "third" ]
+          },
+          "score" : {
+            "maximum" : 100,
+            "minimum" : 0,
+            "type" : "number",
+            "format" : "float"
+          },
+          "grade" : {
+            "type" : "string",
+            "example" : "A"
+          },
+          "remarks" : {
+            "type" : "string"
+          }
+        }
+      },
+      "Class" : {
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "example" : "CLS-2024-00003"
+          },
+          "name" : {
+            "type" : "string",
+            "example" : "JSS 1A"
+          },
+          "level" : {
+            "type" : "string"
+          },
+          "teacher_id" : {
+            "type" : "string"
+          },
+          "capacity" : {
+            "type" : "integer"
+          },
+          "student_count" : {
+            "type" : "integer"
+          }
+        }
+      }
+    },
+    "securitySchemes" : {
+      "BearerAuth" : {
+        "type" : "http",
+        "scheme" : "bearer",
+        "bearerFormat" : "JWT"
+      }
+    }
+  }
+}
