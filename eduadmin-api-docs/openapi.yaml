@@ -1,0 +1,842 @@
+openapi: 3.0.3
+info:
+  title: EduAdmin Pro API
+  version: 2.1.0
+  description: |
+    The EduAdmin Pro REST API provides programmatic access to school management operations
+    including student records, staff management, fees, grades, timetables, and administration.
+
+    ## Base URL
+    ```
+    https://api.eduadminpro.com/v1
+    ```
+
+    ## Authentication
+    All endpoints (except `/auth/login` and `/auth/register`) require a valid JWT Bearer token
+    in the `Authorization` header.
+
+    ```
+    Authorization: Bearer <your_token>
+    ```
+
+    Tokens expire after **24 hours**. Use `/auth/refresh` to obtain a new token without
+    re-entering credentials.
+
+    ## Role-Based Access
+    EduAdmin Pro uses five roles with different permission levels:
+    | Role | Description |
+    |------|-------------|
+    | `super_admin` | Full system access |
+    | `admin` | School-level administration |
+    | `teacher` | Class and grade management |
+    | `student` | Read-only access to own records |
+    | `parent` | Read-only access to linked student records |
+
+    ## Response Format
+    All responses return JSON with the following envelope:
+    ```json
+    {
+      "success": true,
+      "data": {},
+      "message": "Operation successful",
+      "meta": {
+        "page": 1,
+        "per_page": 20,
+        "total": 100
+      }
+    }
+    ```
+
+    ## Rate Limiting
+    Requests are limited to **300 per minute** per API token. Rate limit headers are included
+    in every response:
+    - `X-RateLimit-Limit`: Maximum requests per minute
+    - `X-RateLimit-Remaining`: Requests remaining in current window
+    - `X-RateLimit-Reset`: Unix timestamp when the window resets
+
+  contact:
+    name: EduAdmin Pro Support
+    email: support@eduadminpro.com
+  license:
+    name: MIT
+
+servers:
+  - url: https://api.eduadminpro.com/v1
+    description: Production
+  - url: https://staging-api.eduadminpro.com/v1
+    description: Staging
+
+tags:
+  - name: Auth
+    description: Authentication and token management
+  - name: Students
+    description: Student record management
+  - name: Staff
+    description: Staff and teacher management
+  - name: Fees
+    description: Fee collection and payment tracking
+  - name: Grades
+    description: Academic results and grade management
+  - name: Classes
+    description: Classes and subject management
+  - name: Admin
+    description: System settings and administration
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Unauthorized
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        total_pages:
+          type: integer
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: USR-2024-00001
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [super_admin, admin, teacher, student, parent]
+        created_at:
+          type: string
+          format: date-time
+
+    Student:
+      type: object
+      properties:
+        id:
+          type: string
+          example: STU-2024-00042
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        class_id:
+          type: string
+          example: CLS-2024-00003
+        enrollment_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [active, inactive, graduated, withdrawn]
+
+    Staff:
+      type: object
+      properties:
+        id:
+          type: string
+          example: STF-2024-00010
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [teacher, admin, support]
+        department:
+          type: string
+        subjects:
+          type: array
+          items:
+            type: string
+
+    Fee:
+      type: object
+      properties:
+        id:
+          type: string
+          example: FEE-2024-00088
+        student_id:
+          type: string
+        fee_type:
+          type: string
+          enum: [tuition, exam, uniform, library, other]
+        amount:
+          type: number
+          format: float
+        due_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [pending, paid, overdue, waived]
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    Grade:
+      type: object
+      properties:
+        id:
+          type: string
+          example: GRD-2024-00200
+        student_id:
+          type: string
+        subject_id:
+          type: string
+        term:
+          type: string
+          enum: [first, second, third]
+        score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+        grade:
+          type: string
+          example: A
+        remarks:
+          type: string
+
+    Class:
+      type: object
+      properties:
+        id:
+          type: string
+          example: CLS-2024-00003
+        name:
+          type: string
+          example: JSS 1A
+        level:
+          type: string
+        teacher_id:
+          type: string
+        capacity:
+          type: integer
+        student_count:
+          type: integer
+
+security:
+  - BearerAuth: []
+
+paths:
+
+  # ─── AUTH ───────────────────────────────────────────────────
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [first_name, last_name, email, password, role]
+              properties:
+                first_name:
+                  type: string
+                last_name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                role:
+                  type: string
+                  enum: [admin, teacher, student, parent]
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/User'
+                  token:
+                    type: string
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in and obtain a JWT token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: admin@school.edu.ng
+                password:
+                  type: string
+                  example: "P@ssw0rd!"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  user:
+                    id: USR-2024-00001
+                    email: admin@school.edu.ng
+                    role: admin
+                  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  expires_in: 86400
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh an expiring JWT token
+      responses:
+        '200':
+          description: New token issued
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  expires_in: 86400
+        '401':
+          description: Token invalid or already expired
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Invalidate the current token
+      responses:
+        '200':
+          description: Logged out successfully
+
+  # ─── STUDENTS ───────────────────────────────────────────────
+  /students:
+    get:
+      tags: [Students]
+      summary: List all students
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: class_id
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, inactive, graduated, withdrawn]
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by name or student ID
+      responses:
+        '200':
+          description: List of students
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Student'
+                  meta:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags: [Students]
+      summary: Enrol a new student
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Student'
+      responses:
+        '201':
+          description: Student created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Student'
+
+  /students/{id}:
+    get:
+      tags: [Students]
+      summary: Get a student by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: STU-2024-00042
+      responses:
+        '200':
+          description: Student record
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Student'
+        '404':
+          description: Student not found
+
+    put:
+      tags: [Students]
+      summary: Update a student record
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Student'
+      responses:
+        '200':
+          description: Student updated
+
+    delete:
+      tags: [Students]
+      summary: Withdraw a student
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Student withdrawn successfully
+
+  # ─── STAFF ──────────────────────────────────────────────────
+  /staff:
+    get:
+      tags: [Staff]
+      summary: List all staff members
+      parameters:
+        - in: query
+          name: role
+          schema:
+            type: string
+            enum: [teacher, admin, support]
+        - in: query
+          name: department
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of staff
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Staff'
+
+    post:
+      tags: [Staff]
+      summary: Add a new staff member
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Staff'
+      responses:
+        '201':
+          description: Staff member created
+
+  /staff/{id}:
+    get:
+      tags: [Staff]
+      summary: Get a staff member by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Staff record
+
+    put:
+      tags: [Staff]
+      summary: Update a staff record
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Staff'
+      responses:
+        '200':
+          description: Staff updated
+
+    delete:
+      tags: [Staff]
+      summary: Remove a staff member
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Staff member removed
+
+  # ─── FEES ───────────────────────────────────────────────────
+  /fees:
+    get:
+      tags: [Fees]
+      summary: List fee records
+      parameters:
+        - in: query
+          name: student_id
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, paid, overdue, waived]
+        - in: query
+          name: fee_type
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Fee records
+
+    post:
+      tags: [Fees]
+      summary: Create a fee record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Fee'
+      responses:
+        '201':
+          description: Fee record created
+
+  /fees/{id}/pay:
+    post:
+      tags: [Fees]
+      summary: Mark a fee as paid
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payment_method, amount_paid]
+              properties:
+                payment_method:
+                  type: string
+                  enum: [cash, bank_transfer, card, mobile_money]
+                amount_paid:
+                  type: number
+                reference:
+                  type: string
+                  description: Payment reference or receipt number
+      responses:
+        '200':
+          description: Payment recorded
+
+  # ─── GRADES ─────────────────────────────────────────────────
+  /grades:
+    get:
+      tags: [Grades]
+      summary: List grade records
+      parameters:
+        - in: query
+          name: student_id
+          schema:
+            type: string
+        - in: query
+          name: subject_id
+          schema:
+            type: string
+        - in: query
+          name: term
+          schema:
+            type: string
+            enum: [first, second, third]
+      responses:
+        '200':
+          description: Grade records
+
+    post:
+      tags: [Grades]
+      summary: Submit a grade
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Grade'
+      responses:
+        '201':
+          description: Grade submitted
+
+  /grades/report/{student_id}:
+    get:
+      tags: [Grades]
+      summary: Get full academic report for a student
+      parameters:
+        - in: path
+          name: student_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: term
+          schema:
+            type: string
+        - in: query
+          name: session
+          schema:
+            type: string
+            example: "2023/2024"
+      responses:
+        '200':
+          description: Full student report card
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  student:
+                    id: STU-2024-00042
+                    name: Chukwuemeka Obi
+                  session: "2023/2024"
+                  term: second
+                  subjects:
+                    - subject: Mathematics
+                      score: 87
+                      grade: A
+                    - subject: English Language
+                      score: 74
+                      grade: B
+                  average: 80.5
+                  position: 3
+                  total_students: 35
+
+  # ─── CLASSES ────────────────────────────────────────────────
+  /classes:
+    get:
+      tags: [Classes]
+      summary: List all classes
+      responses:
+        '200':
+          description: All classes
+
+    post:
+      tags: [Classes]
+      summary: Create a class
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Class'
+      responses:
+        '201':
+          description: Class created
+
+  /classes/{id}/students:
+    get:
+      tags: [Classes]
+      summary: Get all students in a class
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Students in the class
+
+  /classes/{id}/subjects:
+    get:
+      tags: [Classes]
+      summary: Get subjects assigned to a class
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Subjects for the class
+
+  # ─── ADMIN ──────────────────────────────────────────────────
+  /admin/settings:
+    get:
+      tags: [Admin]
+      summary: Get system settings
+      responses:
+        '200':
+          description: Current settings
+
+    patch:
+      tags: [Admin]
+      summary: Update system settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                school_name:
+                  type: string
+                academic_session:
+                  type: string
+                current_term:
+                  type: string
+                  enum: [first, second, third]
+                grading_scale:
+                  type: object
+      responses:
+        '200':
+          description: Settings updated
+
+  /admin/audit-logs:
+    get:
+      tags: [Admin]
+      summary: Retrieve audit logs
+      parameters:
+        - in: query
+          name: user_id
+          schema:
+            type: string
+        - in: query
+          name: action
+          schema:
+            type: string
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Audit log entries
